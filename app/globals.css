@@ -1,0 +1,22 @@
+:root{--bg:#f4f5f2;--panel:#fff;--ink:#1d2420;--muted:#5d6862;--line:#dde1db;--p1:#2f6b47;--p2:#9a7428;--p3:#5d6862;--svc:#a2432a;--accent:#2f5d8a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+header{display:flex;gap:24px;align-items:center;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line)}
+header b{font-size:17px}header nav{display:flex;gap:16px}
+main{max-width:1200px;margin:0 auto;padding:24px}
+h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 10px}.muted{color:var(--muted);font-size:13px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:16px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.tile .v{font-size:26px;font-weight:600}.tile .l{color:var(--muted);font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12.5px}
+.chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;color:#fff}
+.P1{background:var(--p1)}.P2{background:var(--p2)}.P3{background:var(--p3)}.SERVICE{background:var(--svc)}
+.badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:12px;border:1px solid var(--line)}
+.warn{border-color:#e3c27a;background:#fbf4e3}.bad{border-color:#e0a99a;background:#fbece8}
+pre{white-space:pre-wrap;font:13px/1.5 ui-monospace,Menlo,monospace;background:#f8f9f6;border:1px solid var(--line);border-radius:8px;padding:12px;margin:0}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.filters a{padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:13px}
+.filters a.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+button{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:800px){.grid2{grid-template-columns:1fr}}
