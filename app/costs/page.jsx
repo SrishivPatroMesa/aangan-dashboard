@@ -1,6 +1,6 @@
 import { loadCore } from "../../lib/data";
 import { inr } from "../../lib/format";
-import { Range, Problem } from "../../components/ui";
+import { Range, Problem, DemoNote, PageHead } from "../../components/ui";
 export const dynamic = "force-dynamic";
 const VENDOR = { vaani: "Vaani voice minutes", gemini: "Gemini (reading calls)", hubspot: "HubSpot", calendly: "Calendly", supabase: "Supabase", vercel: "Vercel" };
 
@@ -23,9 +23,10 @@ export default async function Costs({ searchParams }) {
   const Tag = ({ kind }) => <span className={`pill ${kind === "Actual" ? "ok" : kind === "Estimated" ? "warn" : ""}`}>{kind}</span>;
   return (
     <>
-      <div className="page-head"><div><h1>Costs and ROI</h1><p className="muted">What the system costs to run, and what it brings in. Every number says whether it's actual, estimated or not reported.</p></div><Range days={days} base="/costs" /></div>
+      <PageHead title="Costs and ROI" sub="What the system costs to run and what it brings in. Every number says whether it's actual, estimated or not reported."><Range days={days} base="/costs" /></PageHead>
+      <DemoNote mode={d.mode} />
       <div className="grid-2">
-        <section className="panel"><div className="stats" style={{ borderTop: 0 }}>
+        <section className="panel"><div className="stat-grid" style={{ borderTop: 0 }}>
           <div className="stat"><b>{inr(total)}</b><span>Total cost{incomplete ? " (some costs not reported)" : ""}</span></div>
           <div className="stat"><b>{calls ? inr(total / calls) : "—"}</b><span>Per call answered</span></div>
           <div className="stat"><b>{booked ? inr(total / booked) : "—"}</b><span>Per consultation booked</span></div>

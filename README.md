@@ -1,9 +1,7 @@
-# Aangan lead desk
+# Aangan Studio · Lead desk
 
-The studio's dashboard for phone leads: who to call next, every lead and its HubSpot stage, team load, costs and ROI, a recovery queue, and system health.
+CRM-style dashboard for the studio's phone leads: Today (call sheet, KPIs, activity), Leads (CRM views + CSV export), Pipeline board, Consultations calendar, Contacts, Reports, Team, Costs and ROI, Phone agent, Recovery, Settings.
 
-- Reads Supabase (call log) and HubSpot (stages, tasks, amounts) on the server; nothing secret reaches the browser.
-- Protected by a username and password (DASHBOARD_USER / DASHBOARD_PASSWORD).
-- Local preview with sample data: `MOCK_DATA=1 npm run dev`.
-
-Pages: Today, Leads (views: needs a call, new, P1, P2, P3, client issues, overdue, unassigned, booked, won and lost), lead record, Team, Costs and ROI, Recovery, System.
+- Live data from Supabase and HubSpot (server-side only). A labelled Demo mode (top bar) shows a sample month for presentations.
+- Protected by DASHBOARD_USER / DASHBOARD_PASSWORD.
+- Local preview with demo data: `MOCK_DATA=1 npm run dev`.

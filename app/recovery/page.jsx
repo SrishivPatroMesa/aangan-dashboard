@@ -1,6 +1,6 @@
 import { loadCore } from "../../lib/data";
 import { fmtDateTime, titleCase } from "../../lib/format";
-import { Tier, Problem } from "../../components/ui";
+import { Tier, Problem, PageHead } from "../../components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function Recovery() {
@@ -9,7 +9,7 @@ export default async function Recovery() {
   const stuck = d.calls.filter((c) => c.stuck);
   return (
     <>
-      <div className="page-head"><div><h1>Recovery</h1><p className="muted">Calls that haven't reached HubSpot yet. Nothing is lost: each one retries on its own, and you can retry by hand.</p></div></div>
+      <PageHead title="Recovery" sub="Calls that haven't reached HubSpot yet. Nothing is lost: each retries on its own, and you can retry by hand." />
       <section className="panel">
         <div className="table-wrap"><table>
           <thead><tr><th>Caller</th><th>Called</th><th>Tier</th><th>What's wrong</th><th className="num">Attempts</th><th></th></tr></thead>

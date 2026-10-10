@@ -1,0 +1,6 @@
+import { LayoutDashboard, Inbox, KanbanSquare, CalendarDays, Users, BarChart3, UserCog, Wallet, Bot, LifeBuoy, Settings, Search, Bell, Phone, ExternalLink, Mail, CalendarPlus, ArrowUpRight, ArrowDownRight, Clock, CheckCircle2, AlertTriangle, PlayCircle, Download, Filter, ChevronRight, Mic, Brain, Ear, Wrench, BookOpen, Webhook, Sparkles, MapPin, Plus, MoreHorizontal, Volume2, PhoneIncoming, FileText, Building2 } from "lucide-react";
+const MAP = { today: LayoutDashboard, inbox: Inbox, pipeline: KanbanSquare, calendar: CalendarDays, contacts: Users, reports: BarChart3, team: UserCog, costs: Wallet, agent: Bot, recovery: LifeBuoy, settings: Settings, search: Search, bell: Bell, phone: Phone, external: ExternalLink, mail: Mail, book: CalendarPlus, up: ArrowUpRight, down: ArrowDownRight, clock: Clock, ok: CheckCircle2, warn: AlertTriangle, play: PlayCircle, download: Download, filter: Filter, chevron: ChevronRight, mic: Mic, brain: Brain, ear: Ear, tool: Wrench, kb: BookOpen, webhook: Webhook, spark: Sparkles, pin: MapPin, plus: Plus, more: MoreHorizontal, volume: Volume2, incoming: PhoneIncoming, note: FileText, building: Building2 };
+export default function Icon({ name, size = 16, label, ...rest }) {
+  const C = MAP[name] ?? Sparkles;
+  return <C size={size} strokeWidth={1.8} aria-hidden={label ? undefined : true} aria-label={label} {...rest} />;
+}

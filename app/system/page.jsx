@@ -1,6 +1,6 @@
 import { loadSystem } from "../../lib/data";
 import { fmtDateTime, titleCase } from "../../lib/format";
-import { Problem } from "../../components/ui";
+import { Problem, PageHead } from "../../components/ui";
 export const dynamic = "force-dynamic";
 const CONN = [["gemini_api_key", "Gemini", "Reads each call"], ["hubspot_token", "HubSpot", "Saves contacts, deals and tasks"], ["calendly_token", "Calendly", "Books consultations during the call"], ["vaani_webhook_secret", "Vaani signature", "Optional extra check on incoming calls"]];
 
@@ -9,7 +9,7 @@ export default async function System() {
   try { s = await loadSystem(); } catch (e) { return <Problem error={e} />; }
   return (
     <>
-      <div className="page-head"><div><h1>System</h1><p className="muted">Connections, the rules the agent follows, and what it's allowed to say.</p></div></div>
+      <PageHead title="Settings" sub="Connections, the rules the agent follows, and what it's allowed to say." />
       <div className="grid-2">
         <section className="panel"><div className="panel-head"><h2>Connections</h2></div>
           <div className="table-wrap"><table><tbody>

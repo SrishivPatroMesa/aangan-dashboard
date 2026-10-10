@@ -1,6 +1,6 @@
 import { loadCore } from "../../lib/data";
 import { pct } from "../../lib/format";
-import { Range, Problem } from "../../components/ui";
+import { Range, Problem, Avatar, DemoNote, PageHead } from "../../components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function Team({ searchParams }) {
@@ -23,13 +23,14 @@ export default async function Team({ searchParams }) {
   const maxOpen = Math.max(1, ...rows.map((r) => r.open));
   return (
     <>
-      <div className="page-head"><div><h1>Team</h1><p className="muted">Who holds which leads, what's overdue, and how each designer converts.</p></div><Range days={days} base="/team" /></div>
+      <PageHead title="Team" sub="Who holds which leads, what's overdue, and how each designer converts."><Range days={days} base="/team" /></PageHead>
+      <DemoNote mode={d.mode} />
       <section className="panel">
         <div className="table-wrap"><table>
           <thead><tr><th>Designer</th><th>Areas</th><th className="num">Leads</th><th className="num">P1</th><th className="num">P2</th><th>Open calls</th><th className="num">Overdue</th><th className="num">Booked</th><th className="num">Held</th><th className="num">Won</th><th className="num">Lead to booking</th></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.name}>
-              <td className="cell-main">{r.name}</td>
+              <td><div className="person"><Avatar name={r.name} size="sm" /><span className="cell-main">{r.name}</span></div></td>
               <td className="cell-sub">{r.areas?.length ? r.areas.join(", ") : "Any"}</td>
               <td className="num">{r.total}</td><td className="num">{r.p1}</td><td className="num">{r.p2}</td>
               <td><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div className="load" style={{ width: 90 }}><span style={{ width: `${(r.open / maxOpen) * 100}%` }} /></div>{r.open}</div></td>
