@@ -1,34 +1,68 @@
-import { db, when } from "../../lib/db";
+import { loadCore } from "../../lib/data";
+import { STAGES, relative, fmtDateTime } from "../../lib/format";
+import { Tier, Status, Problem } from "../../components/ui";
 export const dynamic = "force-dynamic";
-const VIEWS = { all: "All", P1: "P1", P2: "P2 review", P3: "P3 follow-up", SERVICE: "Escalations", booked: "Booked", unassigned: "Unassigned", recovery: "Recovery" };
+
+const VIEWS = [
+  ["open", "Needs a call", (c) => c.needsCall],
+  ["new", "New today", (c) => Date.now() - Date.parse(c.created_at) < 86400e3],
+  ["P1", "P1 and bookings", (c) => c.tier === "P1"],
+  ["P2", "P2 review", (c) => c.tier === "P2"],
+  ["P3", "P3 follow-up", (c) => c.tier === "P3"],
+  ["SERVICE", "Client issues", (c) => c.tier === "SERVICE"],
+  ["overdue", "Overdue", (c) => c.needsCall && c.due && Date.parse(c.due) < Date.now()],
+  ["unassigned", "Unassigned", (c) => (c.tier === "P1" || c.tier === "P2") && !c.designer],
+  ["booked", "Booked", (c) => c.booking_status === "confirmed" || c.stage === "consultation_booked"],
+  ["closed", "Won and lost", (c) => c.stage === "won" || c.stage === "lost"],
+  ["all", "All", () => true],
+];
 
 export default async function Leads({ searchParams }) {
-  const view = searchParams?.view ?? "all";
-  let q = db().from("call_records").select("id,vaani_call_id,source,caller_name,caller_phone,tier,disposition,status,booking_status,assigned_owner_id,created_at,started_at,summary,extraction").order("created_at", { ascending: false }).limit(300);
-  if (["P1", "P2", "P3", "SERVICE"].includes(view)) q = q.eq("tier", view);
-  if (view === "booked") q = q.eq("booking_status", "confirmed");
-  if (view === "unassigned") q = q.is("assigned_owner_id", null).not("tier", "is", null);
-  if (view === "recovery") q = q.in("status", ["needs_attention", "waiting_credentials"]);
-  const { data, error } = await q;
-  if (error) return <p>Could not load leads: {error.message}</p>;
+  const view = VIEWS.find((v) => v[0] === searchParams?.view) ?? VIEWS[0];
+  const q = String(searchParams?.q ?? "").trim().toLowerCase();
+  let d;
+  try { d = await loadCore({ days: 3650, includeTest: true }); } catch (e) { return <Problem error={e} />; }
+  const all = d.calls;
+  const match = (c) => !q || [c.caller_name, c.caller_phone, c.extraction?.location, c.extraction?.property_type, c.summary].some((s) => s && String(s).toLowerCase().includes(q));
+  const rows = all.filter(view[2]).filter(match).sort((a, b) => view[0] === "open" || view[0] === "overdue" ? Date.parse(a.due ?? 0) - Date.parse(b.due ?? 0) : Date.parse(b.created_at) - Date.parse(a.created_at));
   return (
     <>
-      <h1>Leads</h1>
-      <p className="muted">Designers work these in HubSpot; this view is for the owner and for anything that hasn't reached HubSpot yet.</p>
-      <div className="filters">{Object.entries(VIEWS).map(([k, l]) => <a key={k} href={`/leads?view=${k}`} className={k === view ? "on" : ""}>{l}</a>)}</div>
-      <div className="card"><table><thead><tr><th>When</th><th>Caller</th><th>Area</th><th>Tier</th><th>Disposition</th><th>Status</th><th>Booking</th></tr></thead><tbody>
-        {(data ?? []).map((c) => (
-          <tr key={c.id}>
-            <td>{when(c.started_at ?? c.created_at)}{c.source !== "vaani" ? <span className="muted"> · {c.source}</span> : null}</td>
-            <td><a href={`/leads/${c.id}`}>{c.caller_name || c.caller_phone || c.vaani_call_id}</a></td>
-            <td>{c.extraction?.location ?? "—"}</td>
-            <td>{c.tier ? <span className={`chip ${c.tier}`}>{c.tier}</span> : "—"}</td>
-            <td>{c.disposition?.replace(/_/g, " ") ?? "—"}</td>
-            <td><span className={`badge ${c.status === "done" ? "" : c.status === "needs_attention" ? "bad" : "warn"}`}>{c.status}</span></td>
-            <td>{c.booking_status ?? "—"}</td>
-          </tr>))}
-        {!(data ?? []).length && <tr><td colSpan={7} className="muted">No leads in this view.</td></tr>}
-      </tbody></table></div>
+      <div className="page-head">
+        <div><h1>Leads</h1><p className="muted">Every call, with its tier, stage and next call. Designers update stages in HubSpot; this list follows.</p></div>
+      </div>
+      <nav className="tabs" aria-label="Lead views">
+        {VIEWS.map(([key, label, fn]) => (
+          <a key={key} href={`/leads?view=${key}${q ? `&q=${encodeURIComponent(q)}` : ""}`} aria-current={view[0] === key ? "page" : undefined}>{label}<span className="n">{all.filter(fn).length}</span></a>
+        ))}
+      </nav>
+      <form className="toolbar" action="/leads" method="get">
+        <input type="hidden" name="view" value={view[0]} />
+        <input className="search" type="search" name="q" defaultValue={q} placeholder="Search name, phone or area" aria-label="Search leads" />
+        <button className="btn" type="submit">Search</button>
+        {q && <a className="small" href={`/leads?view=${view[0]}`}>Clear search</a>}
+      </form>
+      <section className="panel">
+        <div className="table-wrap"><table>
+          <thead><tr><th>Caller</th><th>Project</th><th>Tier</th><th>Stage</th><th>Designer</th><th>Next call</th><th>Called</th></tr></thead>
+          <tbody>
+            {rows.map((c) => {
+              const r = c.needsCall ? relative(c.due) : null;
+              return (
+                <tr key={c.id}>
+                  <td><a className="cell-main" href={`/leads/${c.id}`}>{c.caller_name || "Unknown caller"}</a><div className="cell-sub">{c.caller_phone || "Number withheld"}{c.source !== "vaani" ? ` (${c.source})` : ""}</div></td>
+                  <td>{[c.extraction?.property_type, c.extraction?.location].filter(Boolean).join(", ") || <span className="faint">Not captured</span>}</td>
+                  <td><Tier tier={c.tier} /></td>
+                  <td>{c.stuck ? <Status call={c} /> : c.stage ? STAGES[c.stage] : <span className="faint">{c.tier === "SERVICE" ? "Escalation task" : "Not in pipeline"}</span>}</td>
+                  <td>{c.designer?.name ?? <span className="faint">Owner</span>}</td>
+                  <td>{r ? <span style={{ color: r.overdue ? "var(--bad)" : undefined, fontWeight: r.overdue ? 600 : 400 }}>{r.text}</span> : <span className="faint">None</span>}</td>
+                  <td className="cell-sub">{fmtDateTime(c.started_at ?? c.created_at)}</td>
+                </tr>
+              );
+            })}
+            {!rows.length && <tr><td colSpan={7} className="empty">{q ? "No leads match that search." : "No leads in this view."}</td></tr>}
+          </tbody>
+        </table></div>
+      </section>
     </>
   );
 }

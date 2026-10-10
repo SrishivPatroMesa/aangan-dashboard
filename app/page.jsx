@@ -1,94 +1,133 @@
-import { db, inr, pct, hubspotPipeline } from "../lib/db";
+import { loadCore } from "../lib/data";
+import { TIERS, relative, pct, fmtDate, minutes } from "../lib/format";
+import { Tier, Range, Problem } from "../components/ui";
 export const dynamic = "force-dynamic";
 
-export default async function Overview({ searchParams }) {
-  const days = Math.min(Math.max(Number(searchParams?.days ?? 30), 1), 365);
-  const since = new Date(Date.now() - days * 86400e3).toISOString();
-  const sb = db();
-  const [{ data: calls, error }, { data: costs }, { data: load }, { data: recovery }, { data: cfg }, { data: rules }] = await Promise.all([
-    sb.from("call_records").select("id,source,tier,disposition,status,after_hours,booking_status,hubspot_contact_id,pricing_asked,duration_sec,designer_id,created_at").gte("created_at", since),
-    sb.from("usage_costs").select("vendor,source,amount_inr,units,unit").gte("created_at", since),
-    sb.from("designer_load").select("*"),
-    sb.from("recovery_queue").select("*").order("created_at", { ascending: false }).limit(50),
-    sb.from("app_config").select("key,value").eq("key", "hubspot_pipeline"),
-    sb.from("studio_rules").select("key,value").in("key", ["fixed_costs_monthly", "gross_margin_pct", "front_desk_minutes_per_call"]),
-  ]);
-  if (error) return <p>Could not load data: {error.message}</p>;
-  const live = (calls ?? []).filter((c) => c.source === "vaani");
-  const all = calls ?? [];
-  const shown = live.length ? live : all;
-  const n = shown.length, by = (t) => shown.filter((c) => c.tier === t).length;
-  const R = Object.fromEntries((rules ?? []).map((r) => [r.key, r.value]));
-  const pipeline = cfg?.[0]?.value ? JSON.parse(cfg[0].value) : null;
-  const hs = await hubspotPipeline(pipeline);
+export default async function Today({ searchParams }) {
+  const days = [7, 30, 90].includes(Number(searchParams?.days)) ? Number(searchParams.days) : 30;
+  let d;
+  try { d = await loadCore({ days }); } catch (e) { return <Problem error={e} />; }
+  const { calls, designers, hubspotError, liveOnly } = d;
+  const now = Date.now();
+  const n = calls.length;
+  const answered = calls.filter((c) => c.disposition !== "dropped_call");
+  const inHub = calls.filter((c) => c.hubspot_contact_id).length;
+  const p1 = calls.filter((c) => c.tier === "P1");
+  const booked = calls.filter((c) => c.booking_status === "confirmed" || ["consultation_booked", "consultation_held", "proposal_sent", "won"].includes(c.stage)).length;
+  const held = calls.filter((c) => ["consultation_held", "proposal_sent", "won"].includes(c.stage)).length;
+  const won = calls.filter((c) => c.stage === "won").length;
+  const avgDur = answered.length ? answered.reduce((a, c) => a + (c.duration_sec ?? 0), 0) / answered.length : null;
 
-  const vendors = {};
-  for (const c of costs ?? []) {
-    const v = (vendors[c.vendor] ??= { actual: 0, estimated: 0, unavailable: 0, records: 0 });
-    v.records++; if (c.amount_inr == null) v.unavailable++; else v[c.source === "actual" ? "actual" : "estimated"] += Number(c.amount_inr);
-  }
-  const fixed = (R.fixed_costs_monthly ?? []).reduce((a, f) => a + Number(f.inr || 0), 0) * (days / 30);
-  const variable = Object.values(vendors).reduce((a, v) => a + v.actual + v.estimated, 0);
-  const anyUnavailable = Object.values(vendors).some((v) => v.unavailable > 0);
-  const total = variable + fixed;
-  const booked = shown.filter((c) => c.booking_status === "confirmed").length;
-  const captured = shown.filter((c) => c.hubspot_contact_id).length;
-  const margin = R.gross_margin_pct;
-  const roi = hs && !hs.error && margin && total ? ((hs.wonAmount * margin - total) / total) : null;
-  const savedHours = (n * Number(R.front_desk_minutes_per_call ?? 4.9)) / 60;
+  const queue = calls.filter((c) => c.needsCall).sort((a, b) => Date.parse(a.due ?? 0) - Date.parse(b.due ?? 0));
+  const overdue = queue.filter((c) => c.due && Date.parse(c.due) < now).length;
 
+  // Tier mix per day (last 14 days of the range)
+  const span = Math.min(days, 14);
+  const dayKeys = Array.from({ length: span }, (_, i) => new Date(now - (span - 1 - i) * 86400e3).toISOString().slice(0, 10));
+  const byDay = Object.fromEntries(dayKeys.map((k) => [k, { P1: 0, P2: 0, P3: 0, SERVICE: 0 }]));
+  for (const c of calls) { const k = (c.started_at ?? c.created_at).slice(0, 10); if (byDay[k] && c.tier) byDay[k][c.tier]++; }
+  const maxDay = Math.max(1, ...dayKeys.map((k) => Object.values(byDay[k]).reduce((a, b) => a + b, 0)));
+
+  const steps = [
+    ["Calls answered", n, null], ["In HubSpot", inHub, n], ["P1 leads", p1.length, inHub],
+    ["Consultations booked", booked, p1.length], ["Consultations held", held, booked], ["Projects won", won, held],
+  ];
+  const team = designers.filter((x) => x.role === "designer").map((x) => {
+    const mine = calls.filter((c) => c.designer_id === x.id);
+    return { ...x, open: mine.filter((c) => c.needsCall).length, late: mine.filter((c) => c.needsCall && c.due && Date.parse(c.due) < now).length, booked: mine.filter((c) => c.booking_status === "confirmed").length };
+  });
+
+  const today = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", weekday: "long", day: "numeric", month: "long" }).format(new Date());
   return (
     <>
-      <h1>Owner overview</h1>
-      <p className="muted">Last {days} days · {live.length ? "live calls only" : "no live calls yet, showing test and replayed calls"} · <a href="?days=7">7d</a> · <a href="?days=30">30d</a> · <a href="?days=90">90d</a></p>
+      <div className="page-head">
+        <div><h1>Today</h1><p className="muted">{today}. {queue.length ? `${queue.length} ${queue.length === 1 ? "lead needs" : "leads need"} a call${overdue ? `, ${overdue} overdue` : ""}.` : "Nobody is waiting for a call."}</p></div>
+        <Range days={days} />
+      </div>
+      {!liveOnly && <div className="banner">No live calls yet, so this page shows test and replayed calls. Real calls replace them automatically.</div>}
+      {hubspotError && <div className="banner">HubSpot didn't respond ({hubspotError}), so stages and task status may be out of date.</div>}
 
-      <h2>Lead operations</h2>
-      <div className="tiles">
-        <Tile v={n} l="Calls handled" />
-        <Tile v={pct(shown.filter((c) => c.after_hours).length, n)} l="Outside studio hours" />
-        <Tile v={shown.filter((c) => c.disposition === "dropped_call").length} l="Dropped calls" />
-        <Tile v={pct(captured, n)} l="Captured in HubSpot" />
-        <Tile v={`${by("P1")} / ${by("P2")} / ${by("P3")}`} l="P1 / P2 / P3" />
-        <Tile v={by("SERVICE")} l="Existing-client escalations" />
-        <Tile v={shown.filter((c) => c.pricing_asked > 0).length} l="Calls that asked about price" />
-        <Tile v={(recovery ?? []).length} l="In recovery queue" warn={(recovery ?? []).length > 0} />
+      <div className="grid-hero">
+        <section className="panel" aria-labelledby="sheet-h">
+          <div className="panel-head"><h2 id="sheet-h">Who to call next</h2><a className="small" href="/leads?view=open">All open leads</a></div>
+          {queue.length ? (
+            <ul className="sheet">
+              {queue.slice(0, 8).map((c) => {
+                const r = relative(c.due, now);
+                const start = Date.parse(c.processed_at ?? c.created_at), end = Date.parse(c.due ?? now);
+                const frac = Math.max(0.04, Math.min(1, (now - start) / Math.max(1, end - start)));
+                const x = c.extraction;
+                return (
+                  <li key={c.id}>
+                    <span className="bar" style={{ background: TIERS[c.tier].color }} aria-hidden="true" />
+                    <div className="who">
+                      <a href={`/leads/${c.id}`}>{c.caller_name || c.caller_phone || "Unknown caller"}</a> <Tier tier={c.tier} />
+                      <div className="sub">{[x.property_type, x.location].filter(Boolean).join(", ") || c.summary || "No details captured"}{c.designer ? `. ${c.designer.name}` : ""}</div>
+                    </div>
+                    <div className="clock">
+                      <span className={r.overdue ? "late" : "muted"}>{r.text}</span>
+                      <div className="track"><div className="fill" style={{ width: `${frac * 100}%`, background: r.overdue ? "var(--bad)" : TIERS[c.tier].color }} /></div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : <p className="empty">All caught up. New leads appear here as soon as a call ends.</p>}
+        </section>
+
+        <section className="panel" aria-labelledby="period-h">
+          <div className="panel-head"><h2 id="period-h">Last {days} days</h2></div>
+          <div className="stats">
+            <div className="stat"><b>{n}</b><span>Calls answered</span></div>
+            <div className="stat"><b>{pct(calls.filter((c) => c.after_hours).length, n)}</b><span>Outside studio hours</span></div>
+            <div className="stat"><b>{pct(inHub, n)}</b><span>Captured in HubSpot</span></div>
+            <div className="stat"><b>{calls.filter((c) => c.pricing_asked > 0).length}</b><span>Asked about price</span></div>
+            <div className="stat"><b>{minutes(avgDur)}</b><span>Average call</span></div>
+            <div className="stat"><b>{calls.filter((c) => c.disposition === "dropped_call").length}</b><span>Dropped calls</span></div>
+          </div>
+        </section>
       </div>
 
-      <h2>Conversion</h2>
-      <div className="tiles">
-        <Tile v={booked} l="Consultations booked by the agent" />
-        <Tile v={pct(booked, by("P1"))} l="P1 booking rate" />
-        {hs && !hs.error ? (<>
-          <Tile v={hs.byStage.consultation_held ?? 0} l="Consultations held" />
-          <Tile v={hs.wonCount} l="Won" /><Tile v={hs.lostCount} l="Lost" />
-          <Tile v={inr(hs.wonAmount)} l="Revenue won (deal amounts)" />
-          <Tile v={hs.wonCount ? inr(hs.wonAmount / hs.wonCount) : "—"} l="Average project value" />
-        </>) : <Tile v="Unavailable" l={hs?.error ? `HubSpot: ${hs.error}` : "Set HUBSPOT_TOKEN in Vercel"} />}
+      <section className="panel" style={{ marginBottom: 18 }} aria-labelledby="pipe-h">
+        <div className="panel-head"><h2 id="pipe-h">From call to project</h2><span className="small muted">Each step shows its share of the step before</span></div>
+        <div className="pipe">
+          {steps.map(([label, v, prev]) => (
+            <div key={label}>
+              <b>{v}</b><span>{label}</span><em>{prev == null ? "all calls" : prev ? `${pct(v, prev)} of previous` : "—"}</em>
+              <span className="lvl" style={{ width: `${n ? Math.max(2, (v / n) * 100) : 0}%` }} aria-hidden="true" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid-2">
+        <section className="panel" aria-labelledby="mix-h">
+          <div className="panel-head"><h2 id="mix-h">Leads by tier, per day</h2></div>
+          <div className="panel-body">
+            <div className="bars" role="img" aria-label="Stacked bars of P1, P2, P3 and client calls per day">
+              {dayKeys.map((k) => (
+                <div className="col" key={k} title={`${fmtDate(k)}: ${Object.entries(byDay[k]).map(([t, v]) => `${t} ${v}`).join(", ")}`}>
+                  {["P1", "P2", "P3", "SERVICE"].map((t) => byDay[k][t] ? <span key={t} style={{ height: `${(byDay[k][t] / maxDay) * 100}%`, background: TIERS[t].color }} /> : null)}
+                </div>
+              ))}
+            </div>
+            <div className="bars-x">{dayKeys.map((k, i) => <span key={k}>{i % Math.ceil(span / 7) === 0 ? (i === 0 || k.slice(8) === "01" ? fmtDate(k) : String(Number(k.slice(8)))) : ""}</span>)}</div>
+            <div className="legend">{["P1", "P2", "P3", "SERVICE"].map((t) => <span key={t}><i style={{ background: TIERS[t].color }} />{t === "SERVICE" ? "Existing client" : `${TIERS[t].label} ${TIERS[t].name.toLowerCase()}`}</span>)}</div>
+          </div>
+        </section>
+
+        <section className="panel" aria-labelledby="team-h">
+          <div className="panel-head"><h2 id="team-h">Designers</h2><a className="small" href="/team">Team detail</a></div>
+          <div className="table-wrap"><table>
+            <thead><tr><th>Designer</th><th className="num">Open</th><th className="num">Overdue</th><th className="num">Booked</th></tr></thead>
+            <tbody>
+              {team.length ? team.map((t) => (
+                <tr key={t.id}><td className="cell-main">{t.name}</td><td className="num">{t.open}</td><td className="num" style={{ color: t.late ? "var(--bad)" : undefined }}>{t.late}</td><td className="num">{t.booked}</td></tr>
+              )) : <tr><td colSpan={4} className="muted">No designers added yet. Until then, every lead goes to the studio owner.</td></tr>}
+            </tbody>
+          </table></div>
+        </section>
       </div>
-
-      <h2>Cost and ROI</h2>
-      <div className="card"><table><thead><tr><th>Line</th><th>Actual</th><th>Estimated</th><th>Records without a cost</th></tr></thead><tbody>
-        {Object.entries(vendors).map(([k, v]) => <tr key={k}><td>{k}</td><td>{inr(v.actual)}</td><td>{inr(v.estimated)}</td><td>{v.unavailable} of {v.records}</td></tr>)}
-        <tr><td>Fixed costs (pro-rated from studio_rules.fixed_costs_monthly)</td><td colSpan={3}>{fixed ? inr(fixed) : "None entered"}</td></tr>
-        <tr><td><b>Total operating cost</b></td><td colSpan={3}><b>{inr(total)}</b>{anyUnavailable ? " (incomplete: some costs not reported)" : ""}</td></tr>
-        <tr><td>Cost per call handled</td><td colSpan={3}>{n ? inr(total / n) : "—"}</td></tr>
-        <tr><td>Cost per consultation booked</td><td colSpan={3}>{booked ? inr(total / booked) : "—"}</td></tr>
-        <tr><td>Front-desk time saved (estimate: calls × {R.front_desk_minutes_per_call ?? 4.9} min)</td><td colSpan={3}>{savedHours.toFixed(1)} hours</td></tr>
-        <tr><td>ROI = (won revenue × gross margin − total cost) ÷ total cost</td><td colSpan={3}>{roi == null ? "Unavailable (needs HubSpot revenue and studio_rules.gross_margin_pct)" : `${Math.round(roi * 100)}%`}</td></tr>
-      </tbody></table></div>
-
-      <h2>Team</h2>
-      <div className="card"><table><thead><tr><th>Designer</th><th>Assigned</th><th>P1</th><th>P2</th><th>Booked</th></tr></thead><tbody>
-        {(load ?? []).length ? load.map((d) => <tr key={d.id}><td>{d.name}</td><td>{d.assigned}</td><td>{d.p1}</td><td>{d.p2}</td><td>{d.booked}</td></tr>)
-          : <tr><td colSpan={5} className="muted">No designers configured yet (POST /admin/designers).</td></tr>}
-      </tbody></table></div>
-
-      <h2>Recovery queue</h2>
-      <div className="card"><table><thead><tr><th>Call</th><th>When</th><th>Tier</th><th>Status</th><th>Waiting on / error</th></tr></thead><tbody>
-        {(recovery ?? []).length ? recovery.map((r) => <tr key={r.id}><td><a href={`/leads/${r.id}`}>{r.vaani_call_id}</a></td><td>{new Date(r.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</td><td>{r.tier ?? "—"}</td><td><span className="badge warn">{r.status}</span></td><td>{r.waiting_on ?? r.last_error ?? "—"}</td></tr>)
-          : <tr><td colSpan={5} className="muted">Nothing stuck.</td></tr>}
-      </tbody></table></div>
     </>
   );
 }
-function Tile({ v, l, warn }) { return <div className={`tile${warn ? " warn" : ""}`}><div className="v">{v}</div><div className="l">{l}</div></div>; }

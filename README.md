@@ -1,8 +1,9 @@
-# Aangan leads dashboard (Vercel)
+# Aangan lead desk
 
-Owner overview (operations, conversion, cost and ROI, team, recovery queue), lead list with filtered views, and lead detail with handoff note, tier reasons, transcript, audit trail and a Retry button.
-Reads Supabase server-side only; HubSpot is optional (adds conversion and revenue). Protected by a username and password.
+The studio's dashboard for phone leads: who to call next, every lead and its HubSpot stage, team load, costs and ROI, a recovery queue, and system health.
 
-Deploy: push this folder to a private GitHub repo → vercel.com → Add New → Project → import the repo → add the variables from .env.example → Deploy.
+- Reads Supabase (call log) and HubSpot (stages, tasks, amounts) on the server; nothing secret reaches the browser.
+- Protected by a username and password (DASHBOARD_USER / DASHBOARD_PASSWORD).
+- Local preview with sample data: `MOCK_DATA=1 npm run dev`.
 
-Deployed on Vercel (project aangan-dashboard).
+Pages: Today, Leads (views: needs a call, new, P1, P2, P3, client issues, overdue, unassigned, booked, won and lost), lead record, Team, Costs and ROI, Recovery, System.
