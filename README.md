@@ -4,3 +4,5 @@ Owner overview (operations, conversion, cost and ROI, team, recovery queue), lea
 Reads Supabase server-side only; HubSpot is optional (adds conversion and revenue). Protected by a username and password.
 
 Deploy: push this folder to a private GitHub repo → vercel.com → Add New → Project → import the repo → add the variables from .env.example → Deploy.
+
+Deployed on Vercel (project aangan-dashboard).
