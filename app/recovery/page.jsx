@@ -1,4 +1,4 @@
-import { loadCore } from "../../lib/data";
+import { loadCore, isPublic } from "../../lib/data";
 import { fmtDateTime, titleCase } from "../../lib/format";
 import { Tier, Problem, PageHead } from "../../components/ui";
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export default async function Recovery() {
                 <td><Tier tier={c.tier} /></td>
                 <td>{c.waiting_on ? `Waiting for ${titleCase(c.waiting_on)}` : c.last_error ?? "Processing is taking longer than usual"}</td>
                 <td className="num">{c.attempts ?? 0}</td>
-                <td><form action="/api/retry" method="post"><input type="hidden" name="id" value={c.id} /><button className="btn">Retry now</button></form></td>
+                <td>{isPublic() ? <span className="xs faint">Retries automatically</span> : <form action="/api/retry" method="post"><input type="hidden" name="id" value={c.id} /><button className="btn">Retry now</button></form>}</td>
               </tr>
             ))}
             {!stuck.length && <tr><td colSpan={6} className="empty">Nothing stuck. Every call has reached HubSpot.</td></tr>}

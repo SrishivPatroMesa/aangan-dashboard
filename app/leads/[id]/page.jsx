@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { loadLead } from "../../../lib/data";
+import { loadLead, isPublic } from "../../../lib/data";
 import { STAGES, DISPOSITIONS, relative, fmtDateTime, minutes, titleCase, inr } from "../../../lib/format";
 import { Tier, Problem, Avatar, DemoNote } from "../../../components/ui";
 import Icon from "../../../components/Icon";
@@ -38,7 +38,7 @@ export default async function Lead({ params, searchParams }) {
           </div>
         </div>
         <div className="actions">
-          {c.caller_phone && <a className="btn" href={`tel:${c.caller_phone}`}><Icon name="phone" size={15} />Call</a>}
+          {c.caller_phone && (isPublic() ? <span className="btn" aria-disabled="true" title="Hidden on the public view"><Icon name="phone" size={15} />Call</span> : <a className="btn" href={`tel:${c.caller_phone}`}><Icon name="phone" size={15} />Call</a>)}
           {c.email ? <a className="btn" href={`mailto:${c.email}`}><Icon name="mail" size={15} />Email</a> : <span className="btn" aria-disabled="true" title="No email captured"><Icon name="mail" size={15} />Email</span>}
           <span className="btn" aria-disabled="true" title="Connect Calendly to book from here"><Icon name="book" size={15} />Book consultation</span>
           {hsUrl && <a className="btn primary" href={hsUrl} target="_blank" rel="noreferrer"><Icon name="external" size={15} />Open in HubSpot</a>}
@@ -50,7 +50,7 @@ export default async function Lead({ params, searchParams }) {
         </div>
       )}
       {searchParams?.retried && <div className="banner info">Retry requested. Result: {searchParams.retried}.</div>}
-      {c.stuck && <div className="banner"><Icon name="warn" size={16} />This lead hasn't reached HubSpot yet: {c.waiting_on ? `waiting for ${titleCase(c.waiting_on)}` : c.last_error}.<form action="/api/retry" method="post" style={{ marginLeft: "auto" }}><input type="hidden" name="id" value={c.id} /><button className="btn">Retry now</button></form></div>}
+      {c.stuck && <div className="banner"><Icon name="warn" size={16} />This lead hasn't reached HubSpot yet: {c.waiting_on ? `waiting for ${titleCase(c.waiting_on)}` : c.last_error}.{!isPublic() && <form action="/api/retry" method="post" style={{ marginLeft: "auto" }}><input type="hidden" name="id" value={c.id} /><button className="btn">Retry now</button></form>}</div>}
       <nav className="tabs" aria-label="Lead sections">
         {[["overview", "Overview"], ["transcript", "Call transcript"], ["activity", "Activity"]].map(([k, l]) => <a key={k} href={`${base}?tab=${k}`} aria-current={tab === k ? "page" : undefined}>{l}</a>)}
       </nav>

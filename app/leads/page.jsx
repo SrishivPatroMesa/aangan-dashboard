@@ -1,4 +1,4 @@
-import { loadCore } from "../../lib/data";
+import { loadCore, isPublic } from "../../lib/data";
 import { STAGES, relative, fmtDateTime } from "../../lib/format";
 import { Tier, Status, Problem, Avatar, DemoNote, PageHead } from "../../components/ui";
 import Icon from "../../components/Icon";
@@ -23,7 +23,7 @@ export default async function Leads({ searchParams }) {
   return (
     <>
       <PageHead title="Leads" sub="Every call, with its tier, pipeline stage and next call. Designers work these in HubSpot; this view follows along.">
-        <a className="btn" href={`/api/export?view=${view[0]}${q ? `&q=${encodeURIComponent(q)}` : ""}`}><Icon name="download" size={15} />Export CSV</a>
+        {isPublic() ? <span className="btn" aria-disabled="true" title="Export is off on the public view"><Icon name="download" size={15} />Export CSV</span> : <a className="btn" href={`/api/export?view=${view[0]}${q ? `&q=${encodeURIComponent(q)}` : ""}`}><Icon name="download" size={15} />Export CSV</a>}
         <a className="btn primary" href="/pipeline"><Icon name="pipeline" size={15} />Board view</a>
       </PageHead>
       <DemoNote mode={d.mode} />
